@@ -453,7 +453,7 @@ function renderDetail(){
 function renderParticipants(h){
   const wrap = document.getElementById('participantsList');
   const parts = h.participants || [];
-  if(parts.length===0){ wrap.innerHTML = '<span style="color:#8a9186;font-size:13px;">Personne inscrit pour l\\'instant.</span>'; return; }
+  if(parts.length===0){ wrap.innerHTML = "<span style=\"color:#8a9186;font-size:13px;\">Personne inscrit pour l'instant.</span>"; return; }
   wrap.innerHTML = parts.map(p=>`<span class="pill">${escapeHtml(p)}<button data-name="${escapeHtml(p)}" title="Se désinscrire">✕</button></span>`).join('');
   wrap.querySelectorAll('button').forEach(b=>{
     b.onclick = ()=>{ syncMutate(s=>{ const hh=s.hikes.find(x=>x.id===h.id); if(hh) hh.participants = (hh.participants||[]).filter(x=>x!==b.dataset.name); return s; }, `Désinscription — ${h.titre}`); };
