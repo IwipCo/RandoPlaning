@@ -293,7 +293,7 @@ async function ghPutFile(cfg, dataObj, sha, message){
   });
   if(!res.ok){
     const err = await res.json().catch(()=>({}));
-    throw new Error((err.message || ('échec ' + res.status)));
+    throw new Error(res.status + (err.message ? ' — ' + err.message : ' — échec de la publication'));
   }
   return res.json();
 }
@@ -310,12 +310,10 @@ async function initialLoad(){
   }
   setStatus('syncing', 'Chargement depuis ' + cfg.owner + '/' + cfg.repo + '…');
   try{
-    const res = await fetch(rawUrl(cfg) + '?_=' + Date.now());
-    if(res.status === 404) state = {hikes: []};
-    else if(res.ok) state = await res.json();
-    else throw new Error('HTTP ' + res.status);
+    const {data} = await ghGetFile(cfg);
+    state = data || {hikes: []};
     localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(state));
-    setStatus(cfg.token ? 'ok' : 'ok', 'Synchronisé avec ' + cfg.owner + '/' + cfg.repo + (cfg.token ? '' : ' (lecture seule)'));
+    setStatus('ok', 'Synchronisé avec ' + cfg.owner + '/' + cfg.repo + (cfg.token ? '' : ' (lecture seule)'));
   }catch(e){
     const cached = localStorage.getItem(LOCAL_CACHE_KEY);
     state = cached ? JSON.parse(cached) : {hikes: []};
@@ -324,7 +322,9 @@ async function initialLoad(){
   renderAll();
 }
 
+let lastWriteAt = 0;
 async function syncMutate(mutatorFn, message){
+  lastWriteAt = Date.now();
   const cfg = getConfig();
   if(!hasRepo(cfg)){
     state = mutatorFn(JSON.parse(JSON.stringify(state)));
@@ -542,7 +542,6 @@ function importData(file){
         incoming.hikes.forEach(h=>{ if(!ids.has(h.id)) merged.push(h); });
         s.hikes = merged; return s;
       }, 'Import JSON');
-      alert('Import réussi : ' + incoming.hikes.length + ' rando(s) dans le fichier, fusionnées.');
     }catch(e){ alert("Ce fichier n'est pas un export valide du carnet de randos."); }
   };
   reader.readAsText(file);
@@ -610,8 +609,9 @@ initialLoad();
 setInterval(()=>{
   const settingsOpen = document.getElementById('settingsBackdrop').classList.contains('open');
   const modalOpen = document.getElementById('modalBackdrop').classList.contains('open');
-  if(!settingsOpen && !modalOpen) initialLoad();
-}, 45000);
+  const justWrote = (Date.now() - lastWriteAt) < 20000;
+  if(!settingsOpen && !modalOpen && !justWrote) initialLoad();
+}, 60000);
 </script>
 </body>
 </html>
