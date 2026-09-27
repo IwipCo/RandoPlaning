@@ -42,7 +42,15 @@
   button:hover{background:var(--pine-dark);}
   button:disabled{opacity:.5;cursor:not-allowed;}
   .banner{margin:14px 20px 0;padding:12px 16px;border:1.5px dashed var(--clay);background:#fbf3ee;font-size:13.5px;color:var(--pine-dark);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
-  main{padding:18px 20px 60px;max-width:760px;margin:0 auto;}
+  main{padding:18px 20px 60px;max-width:780px;margin:0 auto;}
+  footer{padding:20px 20px 40px;font-size:12.5px;color:#8a9186;border-top:1px solid var(--line);max-width:780px;margin:0 auto;}
+
+  /* Onglets */
+  .tabs{display:flex;gap:0;border-bottom:2px solid var(--pine);margin-bottom:16px;flex-wrap:wrap;}
+  button.tab-btn{background:none;border:none;border-bottom:3px solid transparent;color:#5b6b60;padding:8px 4px;margin-right:20px;font-size:14.5px;font-weight:500;border-radius:0;}
+  button.tab-btn:hover{background:none;color:var(--pine-dark);}
+  button.tab-btn.active{color:var(--pine-dark);border-bottom-color:var(--clay);font-weight:650;}
+
   .list-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:6px;flex-wrap:wrap;gap:8px;}
   .list-header h2{margin:0;font-size:17px;font-weight:650;color:var(--pine-dark);}
   .toggle-past{font-size:13px;color:#5b6b60;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;}
@@ -53,7 +61,27 @@
   .hike-card .route{font-size:13px;margin-top:5px;color:var(--ink);}
   .badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:2px;background:var(--contour);color:var(--pine-dark);margin-top:6px;}
   .empty-note{padding:26px 6px;color:#6a7267;font-size:14px;}
-  footer{padding:20px 20px 40px;font-size:12.5px;color:#8a9186;border-top:1px solid var(--line);max-width:760px;margin:0 auto;}
+
+  /* Calendrier */
+  .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .cal-header h2{margin:0;font-size:16px;color:var(--pine-dark);text-transform:capitalize;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-dow{font-size:11px;color:#8a9186;text-align:center;padding:4px 0;}
+  .cal-cell{min-height:68px;border:1px solid var(--line);background:var(--card-bg);padding:4px;font-size:11px;}
+  .cal-cell.empty{background:transparent;border:none;}
+  .cal-daynum{font-size:11px;color:#5b6b60;margin-bottom:3px;}
+  .cal-cell.today{border-color:var(--clay);}
+  .cal-cell.today .cal-daynum{color:var(--clay);font-weight:700;}
+  .cal-chip{background:var(--pine);color:#fff;border-radius:2px;padding:1px 4px;font-size:10.5px;margin-bottom:2px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cal-chip:hover{background:var(--pine-dark);}
+  @media (max-width:600px){ .cal-cell{min-height:50px;padding:2px;} .cal-chip{font-size:9px;padding:1px 2px;} }
+
+  /* Statistiques */
+  .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;}
+  .bar-row .label{width:80px;flex:none;color:#5b6b60;text-transform:capitalize;}
+  .bar-track{flex:1;background:var(--card-bg);border:1px solid var(--line);height:14px;}
+  .bar-fill{background:var(--pine);height:100%;}
+  .bar-row .count{width:22px;text-align:right;font-weight:600;color:var(--pine-dark);}
 
   /* Modales / popups */
   .modal-backdrop{position:fixed;inset:0;background:rgba(30,38,33,.45);display:none;align-items:flex-start;justify-content:center;padding:36px 16px;overflow-y:auto;z-index:10000;}
@@ -104,7 +132,7 @@
   .comment-form{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
   .comment-form input:first-child{width:120px;height:38px;}
   .comment-form input:nth-child(2){flex:1;min-width:140px;height:38px;}
-  .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px;}
+  .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
 </style>
 </head>
 <body>
@@ -115,10 +143,6 @@
     <span class="status-pill local" id="statusPill"><span class="dot"></span><span id="statusText">Non configuré</span></span>
   </div>
   <div class="top-actions">
-    <button class="subtle" id="btnRefresh" title="Recharger depuis GitHub">⟳ Actualiser</button>
-    <button class="subtle" id="btnExport">Exporter JSON</button>
-    <button class="subtle" id="btnImport">Importer</button>
-    <input type="file" id="fileImport" accept="application/json" style="display:none">
     <button class="subtle" id="btnSettings">⚙ Paramètres</button>
     <button id="btnAdd">+ Proposer une rando</button>
   </div>
@@ -130,14 +154,41 @@
 </div>
 
 <main>
-  <div class="list-header">
-    <h2 id="listTitle">À venir</h2>
-    <label class="toggle-past"><input type="checkbox" id="chkPast" style="width:auto;height:auto;"> Voir les randos passées</label>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="list" type="button">Liste</button>
+    <button class="tab-btn" data-tab="calendar" type="button">Calendrier</button>
+    <button class="tab-btn" data-tab="stats" type="button">Statistiques</button>
   </div>
-  <div id="list"></div>
+
+  <section id="viewList">
+    <div class="list-header">
+      <h2 id="listTitle">À venir</h2>
+      <label class="toggle-past"><input type="checkbox" id="chkPast" style="width:auto;height:auto;"> Voir les randos passées</label>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <section id="viewCalendar" style="display:none;">
+    <div class="cal-header">
+      <button class="subtle" id="calPrev" type="button">‹ Précédent</button>
+      <h2 id="calLabel"></h2>
+      <button class="subtle" id="calNext" type="button">Suivant ›</button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </section>
+
+  <section id="viewStats" style="display:none;">
+    <div class="stat-row" id="statsSummary"></div>
+    <div class="section-title">Randos par mois</div>
+    <div id="statsMonthly"></div>
+    <div class="grid2" style="margin-top:18px;">
+      <div><div class="section-title">Organisateurs les plus actifs</div><div id="statsOrga"></div></div>
+      <div><div class="section-title">Participants les plus assidus</div><div id="statsPart"></div></div>
+    </div>
+  </section>
 </main>
 
-<footer>Les randos sont lues et publiées depuis un dépôt GitHub (fichier JSON) si configuré ci-dessus ; sinon elles restent stockées localement dans ce navigateur.</footer>
+<footer>Les randos sont lues et publiées depuis un dépôt GitHub (fichier JSON) si configuré ; sinon elles restent stockées localement dans ce navigateur.</footer>
 
 <!-- Popup détail d'une rando -->
 <div class="modal-backdrop" id="detailBackdrop">
@@ -162,7 +213,10 @@
 <!-- Popup paramètres GitHub -->
 <div class="modal-backdrop" id="settingsBackdrop">
   <div class="modal">
-    <h3>Paramètres GitHub</h3>
+    <div class="modal-close-row">
+      <h3>Paramètres GitHub</h3>
+      <button data-action="close-settings" title="Fermer" type="button">✕</button>
+    </div>
     <p class="lead">Le fichier JSON doit se trouver dans un dépôt <b>public</b> pour que tout le monde puisse le lire sans jeton (cas classique d'un site GitHub Pages).</p>
     <div class="grid2">
       <div class="field"><label>Propriétaire / organisation</label><input id="s_owner" placeholder="ex. jdupont"></div>
@@ -178,13 +232,26 @@
       <div class="hint">Jeton « fine-grained » limité à ce dépôt, permission <i>Contents: Read and write</i>. Stocké uniquement dans ce navigateur.</div>
     </div>
     <div class="warn-box"><b>Ne partagez jamais votre jeton dans un message public ou un lien.</b>Transmettez-le en direct aux personnes de confiance qui doivent publier des randos.</div>
-    <button class="ghost" id="btnSettingsSave" type="button">Enregistrer les paramètres</button>
+    <div class="modal-actions">
+      <button class="ghost" id="btnSettingsCancel" type="button">Annuler</button>
+      <button id="btnSettingsSave" type="button">Enregistrer les paramètres</button>
+    </div>
+
     <hr class="sep">
     <h3 style="font-size:16px;">Lien à partager au groupe</h3>
     <p class="lead">Lien pré-configuré avec le dépôt/branche/fichier, pour que les participants ouvrent l'appli déjà connectée aux bonnes données.</p>
     <label class="checkline"><input type="checkbox" id="s_includeToken"> Inclure aussi mon jeton dans ce lien (fortement déconseillé — accès en écriture à quiconque ouvre le lien)</label>
     <button class="subtle" id="btnGenLink" type="button">Générer et copier le lien</button>
     <input class="link-output" id="s_link" readonly onclick="this.select()">
+
+    <hr class="sep">
+    <h3 style="font-size:16px;">Données</h3>
+    <div class="action-row">
+      <button class="subtle" id="btnRefresh" type="button">⟳ Actualiser depuis GitHub</button>
+      <button class="subtle" id="btnExport" type="button">Exporter en JSON</button>
+      <button class="subtle" id="btnImport" type="button">Importer un JSON</button>
+      <input type="file" id="fileImport" accept="application/json" style="display:none">
+    </div>
   </div>
 </div>
 
@@ -220,12 +287,17 @@ const CONFIG_KEY = 'sentiers_gh_config_v1';
 const TOKEN_KEY = 'sentiers_gh_token_v1';
 const LOCAL_CACHE_KEY = 'sentiers_data_cache_v1';
 const DEFAULT_HEURE_DEPART = '09:00';
+const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const DOW = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 
 let state = { hikes: [] };
 let selectedId = null;
 let editingId = null;
 let showPast = false;
 let pendingJoin = null;
+let activeTab = 'list';
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
 
 // ---------- Config ----------
 function getConfig(){
@@ -350,7 +422,11 @@ async function syncMutate(mutatorFn, message){
   renderAll();
 }
 
-function renderAll(){ renderList(); renderDetail(); }
+function renderAll(){
+  renderList(); renderDetail();
+  if(activeTab === 'calendar') renderCalendar();
+  if(activeTab === 'stats') renderStats();
+}
 
 // ---------- Utils ----------
 function uid(){ return 'h_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -358,6 +434,18 @@ function endDateTime(h){ const t = h.heureArrivee || h.heureDepart || '23:59'; r
 function isPast(h){ return endDateTime(h).getTime() < Date.now(); }
 function fmtDate(d){ const dt = new Date(d + 'T00:00:00'); return dt.toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short', year:'numeric'}); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- Onglets ----------
+function switchTab(tab){
+  activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('viewList').style.display = tab === 'list' ? '' : 'none';
+  document.getElementById('viewCalendar').style.display = tab === 'calendar' ? '' : 'none';
+  document.getElementById('viewStats').style.display = tab === 'stats' ? '' : 'none';
+  if(tab === 'calendar') renderCalendar();
+  if(tab === 'stats') renderStats();
+}
+document.querySelectorAll('.tab-btn').forEach(b=> b.onclick = ()=> switchTab(b.dataset.tab));
 
 // ---------- Liste ----------
 function renderList(){
@@ -382,6 +470,68 @@ function renderList(){
   list.querySelectorAll('.hike-card').forEach(el=>{
     el.addEventListener('click', ()=> openDetail(el.dataset.id));
   });
+}
+
+// ---------- Calendrier ----------
+function renderCalendar(){
+  document.getElementById('calLabel').textContent = MOIS[calMonth] + ' ' + calYear;
+  const grid = document.getElementById('calGrid');
+  const firstDow = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+  const numDays = new Date(calYear, calMonth+1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0,10);
+  let html = DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  for(let i=0;i<firstDow;i++) html += '<div class="cal-cell empty"></div>';
+  for(let day=1; day<=numDays; day++){
+    const dateStr = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+    const dayHikes = (state.hikes||[]).filter(h=>h.date===dateStr);
+    html += `<div class="cal-cell ${dateStr===todayStr?'today':''}">
+      <div class="cal-daynum">${day}</div>
+      ${dayHikes.map(h=>`<div class="cal-chip" data-id="${h.id}" title="${escapeHtml(h.titre)}">${escapeHtml(h.titre)}</div>`).join('')}
+    </div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.cal-chip').forEach(chip=> chip.onclick = ()=> openDetail(chip.dataset.id));
+}
+document.getElementById('calPrev').onclick = ()=>{ calMonth--; if(calMonth<0){ calMonth=11; calYear--; } renderCalendar(); };
+document.getElementById('calNext').onclick = ()=>{ calMonth++; if(calMonth>11){ calMonth=0; calYear++; } renderCalendar(); };
+
+// ---------- Statistiques ----------
+function renderRankTable(counts, emptyMsg){
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(entries.length===0) return `<p style="color:#8a9186;font-size:13px;">${emptyMsg}</p>`;
+  return `<table class="ptable"><tbody>${entries.map(([name,count])=>`<tr><td>${escapeHtml(name)}</td><td class="actions">${count}</td></tr>`).join('')}</tbody></table>`;
+}
+function renderStats(){
+  const hikes = state.hikes || [];
+  const totalKm = hikes.reduce((sum,h)=> sum + (h.km||0), 0);
+  const totalDeniv = hikes.reduce((sum,h)=> sum + (h.deniv||0), 0);
+  const upcoming = hikes.filter(h=>!isPast(h)).length;
+  const past = hikes.filter(h=>isPast(h)).length;
+  document.getElementById('statsSummary').innerHTML = `
+    <div class="stat"><b>${hikes.length}</b>randos au total</div>
+    <div class="stat"><b>${upcoming}</b>à venir</div>
+    <div class="stat"><b>${past}</b>passées</div>
+    <div class="stat"><b>${totalKm.toFixed(0)} km</b>distance cumulée</div>
+    <div class="stat"><b>${totalDeniv} m</b>dénivelé cumulé</div>
+  `;
+  const byMonth = {};
+  hikes.forEach(h=>{ if(h.date){ const key = h.date.slice(0,7); byMonth[key] = (byMonth[key]||0) + 1; } });
+  const monthKeys = Object.keys(byMonth).sort();
+  const maxCount = Math.max(1, ...monthKeys.map(k=>byMonth[k]));
+  document.getElementById('statsMonthly').innerHTML = monthKeys.length===0
+    ? '<p style="color:#8a9186;font-size:13px;">Pas encore de données.</p>'
+    : monthKeys.map(k=>{
+        const [y,m] = k.split('-');
+        const label = MOIS[parseInt(m,10)-1].slice(0,4) + '. ' + y;
+        const pct = Math.round(byMonth[k]/maxCount*100);
+        return `<div class="bar-row"><span class="label">${label}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="count">${byMonth[k]}</span></div>`;
+      }).join('');
+  const orgaCounts = {};
+  hikes.forEach(h=>{ if(h.orga) orgaCounts[h.orga] = (orgaCounts[h.orga]||0)+1; });
+  document.getElementById('statsOrga').innerHTML = renderRankTable(orgaCounts, 'Aucune donnée.');
+  const partCounts = {};
+  hikes.forEach(h=> (h.participants||[]).forEach(p=> partCounts[p] = (partCounts[p]||0)+1));
+  document.getElementById('statsPart').innerHTML = renderRankTable(partCounts, 'Aucune inscription pour le moment.');
 }
 
 // ---------- Détail (popup) ----------
@@ -586,6 +736,7 @@ function openSettings(){
   document.getElementById('s_link').value = '';
   document.getElementById('settingsBackdrop').classList.add('open');
 }
+function closeSettings(){ document.getElementById('settingsBackdrop').classList.remove('open'); }
 function readSettingsForm(){
   return {
     owner: document.getElementById('s_owner').value.trim(), repo: document.getElementById('s_repo').value.trim(),
@@ -614,9 +765,11 @@ document.getElementById('chkPast').onchange = (e)=>{ showPast = e.target.checked
 document.getElementById('btnRefresh').onclick = initialLoad;
 document.getElementById('btnSettings').onclick = openSettings;
 document.getElementById('btnBannerSettings').onclick = openSettings;
+document.getElementById('btnSettingsCancel').onclick = closeSettings;
+document.querySelector('#settingsBackdrop [data-action="close-settings"]').onclick = closeSettings;
 document.getElementById('btnSettingsSave').onclick = ()=>{
   saveConfig(readSettingsForm());
-  document.getElementById('settingsBackdrop').classList.remove('open');
+  closeSettings();
   initialLoad();
 };
 document.getElementById('btnGenLink').onclick = ()=>{
