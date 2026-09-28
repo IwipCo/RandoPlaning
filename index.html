@@ -93,10 +93,13 @@
   .modal-close-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
   .modal-close-row button{border:none;background:none;color:#5b6b60;font-size:20px;line-height:1;padding:0 2px;}
 
-  .field{margin-bottom:12px;}
+  .field{margin-bottom:12px;min-width:0;}
   .field label{display:block;font-size:12.5px;color:#5b6b60;margin-bottom:4px;font-weight:500;}
-  .field input,.field textarea{width:100%;height:38px;}
+  .field input,.field textarea,.field select{width:100%;max-width:100%;min-width:0;height:38px;}
   .field textarea{height:auto;}
+  select{font-family:inherit;font-size:14px;padding:8px 10px;border:1.5px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);}
+  input[type=date],input[type=time]{-webkit-appearance:none;appearance:none;display:block;line-height:normal;}
+  .grid2>*{min-width:0;}
   input,textarea{font-family:inherit;font-size:14px;padding:8px 10px;border:1.5px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);}
   input:focus,textarea:focus{outline:none;border-color:var(--pine);}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
@@ -133,6 +136,9 @@
   .comment-form input:first-child{width:120px;height:38px;}
   .comment-form input:nth-child(2){flex:1;min-width:140px;height:38px;}
   .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .info-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;margin:10px 0 0;}
+  .info-grid dt{color:#5b6b60;font-size:12.5px;}
+  .info-grid dd{margin:0;color:var(--ink);font-weight:500;overflow-wrap:anywhere;}
 </style>
 </head>
 <body>
@@ -200,9 +206,10 @@
 <!-- Popup rejoindre via lien d'inscription -->
 <div class="modal-backdrop" id="joinModalBackdrop">
   <div class="modal">
-    <h3>Rejoindre la rando</h3>
-    <p class="lead" id="joinHikeTitle" style="font-weight:600;color:var(--pine-dark);"></p>
-    <div class="field"><label>Votre prénom</label><input id="joinName" placeholder="Prénom"></div>
+    <div class="hint" style="margin:0 0 4px;">Inscription à la randonnée</div>
+    <h2 id="joinHikeTitle" style="margin:0 0 4px;font-size:26px;line-height:1.2;color:var(--pine-dark);"></h2>
+    <div id="joinHikeInfo"></div>
+    <div class="field" style="margin-top:14px;"><label>Votre prénom</label><input id="joinName" placeholder="Prénom"></div>
     <div class="modal-actions">
       <button class="ghost" id="btnJoinCancel" type="button">Annuler</button>
       <button id="btnJoinConfirm" type="button">Confirmer mon inscription</button>
@@ -261,18 +268,21 @@
     <h3 id="modalTitle">Proposer une randonnée</h3>
     <div class="field"><label>Titre</label><input id="f_titre" placeholder="Ex. Boucle des Trois Cols"></div>
     <div class="grid2">
-      <div class="field"><label>Organisateur·rice</label><input id="f_orga"></div>
       <div class="field"><label>Date</label><input type="date" id="f_date"></div>
+      <div class="field"><label>Heure de départ</label><input type="time" id="f_hdep"></div>
     </div>
     <div class="grid2">
-      <div class="field"><label>Heure de départ</label><input type="time" id="f_hdep"></div>
-      <div class="field"><label>Heure de retour prévue</label><input type="time" id="f_harr"></div>
+      <div class="field"><label>Organisateur·rice</label><input id="f_orga"></div>
+      <div class="field"><label>Difficulté</label>
+        <select id="f_diff"><option value="">—</option><option>Facile</option><option>Moyenne</option><option>Difficile</option><option>Très difficile</option></select>
+      </div>
     </div>
     <div class="grid2">
       <div class="field"><label>Distance (km)</label><input type="number" step="0.1" id="f_km"></div>
       <div class="field"><label>Dénivelé (m D+)</label><input type="number" id="f_deniv"></div>
     </div>
     <div class="field"><label>Durée prévue</label><input id="f_duree" placeholder="ex. 4h30"></div>
+    <div class="field"><label>Lieu de rendez-vous</label><input id="f_rdv" placeholder="Ex. Parking de la gare, 8h15"></div>
     <div class="field"><label>Lieu de départ</label><input id="f_adresse" placeholder="Ex. Parking du Col des Aravis, Manigod"></div>
     <div class="field"><label>Lieu d'arrivée</label><input id="f_arrivee" placeholder="Ex. Refuge du Lac"></div>
     <div class="modal-actions">
@@ -430,9 +440,24 @@ function renderAll(){
 
 // ---------- Utils ----------
 function uid(){ return 'h_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
-function endDateTime(h){ const t = h.heureArrivee || h.heureDepart || '23:59'; return new Date(h.date + 'T' + t); }
+function endDateTime(h){ return new Date(h.date + 'T23:59'); }
 function isPast(h){ return endDateTime(h).getTime() < Date.now(); }
 function fmtDate(d){ const dt = new Date(d + 'T00:00:00'); return dt.toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short', year:'numeric'}); }
+function hikeInfoHtml(h){
+  const rows = [
+    ['Date', h.date ? fmtDate(h.date) : ''],
+    ['Heure de départ', h.heureDepart],
+    ['Rendez-vous', h.rdv],
+    ['Lieu de départ', h.departLabel],
+    ["Lieu d'arrivée", h.arrivee],
+    ['Organisateur·rice', h.orga],
+    ['Distance', h.km != null ? h.km + ' km' : ''],
+    ['Dénivelé', h.deniv != null ? h.deniv + ' m D+' : ''],
+    ['Durée prévue', h.duree],
+    ['Difficulté', h.difficulte]
+  ].filter(r => r[1]);
+  return '<dl class="info-grid">' + rows.map(r => '<dt>' + r[0] + '</dt><dd>' + escapeHtml(String(r[1])) + '</dd>').join('') + '</dl>';
+}
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ---------- Onglets ----------
@@ -463,9 +488,9 @@ function renderList(){
   list.innerHTML = hikes.map(h => `
     <div class="hike-card" data-id="${h.id}">
       <div class="titre">${escapeHtml(h.titre)}</div>
-      <div class="meta"><span>${fmtDate(h.date)}</span><span>${h.heureDepart||'?'}${h.heureArrivee ? ' → '+h.heureArrivee : ''}</span></div>
+      <div class="meta"><span>${fmtDate(h.date)}</span><span>${h.heureDepart||'?'}</span></div>
       <div class="route">${escapeHtml(h.departLabel||'?')} → ${escapeHtml(h.arrivee||'?')}</div>
-      <div class="badge">${h.km ?? '?'} km · ${h.deniv ?? '?'} m D+</div>
+      <div class="badge">${h.km ?? '?'} km · ${h.deniv ?? '?'} m D+${h.difficulte ? ' · ' + escapeHtml(h.difficulte) : ''}</div>
     </div>`).join('');
   list.querySelectorAll('.hike-card').forEach(el=>{
     el.addEventListener('click', ()=> openDetail(el.dataset.id));
@@ -560,17 +585,10 @@ function renderDetail(){
     <div class="modal-close-row">
       <div class="detail-head">
         <h2>${escapeHtml(h.titre)}</h2>
-        <div class="route-line">${escapeHtml(h.departLabel||'?')} → ${escapeHtml(h.arrivee||'?')} · organisée par ${escapeHtml(h.orga||'?')}</div>
       </div>
       <button data-action="close" title="Fermer">✕</button>
     </div>
-    <div class="stat-row">
-      <div class="stat"><b>${fmtDate(h.date)}</b>date</div>
-      <div class="stat"><b>${h.heureDepart||'?'}${h.heureArrivee?' – '+h.heureArrivee:''}</b>horaires</div>
-      <div class="stat"><b>${h.duree||'?'}</b>durée prévue</div>
-      <div class="stat"><b>${h.km ?? '?'} km</b>distance</div>
-      <div class="stat"><b>${h.deniv ?? '?'} m</b>dénivelé D+</div>
-    </div>
+    ${hikeInfoHtml(h)}
     <div class="section-title">Participants (${parts.length})</div>
     ${participantsHtml}
     <div class="signup-row">
@@ -645,7 +663,8 @@ function openModal(hike){
   document.getElementById('f_orga').value = hike ? (hike.orga||'') : '';
   document.getElementById('f_date').value = hike ? hike.date : '';
   document.getElementById('f_hdep').value = hike ? (hike.heureDepart||'') : DEFAULT_HEURE_DEPART;
-  document.getElementById('f_harr').value = hike ? (hike.heureArrivee||'') : '';
+  document.getElementById('f_rdv').value = hike ? (hike.rdv||'') : '';
+  document.getElementById('f_diff').value = hike ? (hike.difficulte||'') : '';
   document.getElementById('f_duree').value = hike ? (hike.duree||'') : '';
   document.getElementById('f_km').value = hike && hike.km != null ? hike.km : '';
   document.getElementById('f_deniv').value = hike && hike.deniv != null ? hike.deniv : '';
@@ -661,7 +680,7 @@ async function saveHike(){
   if(!titre || !date){ alert('Merci de renseigner au moins un titre et une date.'); return; }
   const fields = {
     titre, orga: document.getElementById('f_orga').value.trim(), date,
-    heureDepart: document.getElementById('f_hdep').value, heureArrivee: document.getElementById('f_harr').value,
+    heureDepart: document.getElementById('f_hdep').value, rdv: document.getElementById('f_rdv').value.trim(), difficulte: document.getElementById('f_diff').value,
     duree: document.getElementById('f_duree').value.trim(),
     km: parseFloat(document.getElementById('f_km').value) || null,
     deniv: parseInt(document.getElementById('f_deniv').value) || null,
@@ -695,6 +714,7 @@ function buildJoinLink(hikeId, includeToken){
 }
 function openJoinPrompt(h){
   document.getElementById('joinHikeTitle').textContent = h.titre;
+  document.getElementById('joinHikeInfo').innerHTML = hikeInfoHtml(h);
   document.getElementById('joinName').value = '';
   document.getElementById('joinModalBackdrop').dataset.hikeId = h.id;
   document.getElementById('joinModalBackdrop').classList.add('open');
@@ -806,6 +826,10 @@ async function boot(){
     if(h) openJoinPrompt(h);
     else alert("Cette rando n'existe plus ou le lien d'inscription est invalide.");
     pendingJoin = null;
+  } else {
+    const key = x => x.date + 'T' + (x.heureDepart || '00:00');
+    const next = (state.hikes || []).filter(x => !isPast(x)).sort((a, b) => key(a).localeCompare(key(b)))[0];
+    if(next) openDetail(next.id);
   }
 }
 boot();
