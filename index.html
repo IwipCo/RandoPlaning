@@ -218,6 +218,8 @@
     <h2 id="joinHikeTitle" style="margin:0 0 4px;font-size:26px;line-height:1.2;color:var(--pine-dark);"></h2>
     <div id="joinHikeInfo"></div>
     <div id="joinHikeDesc"></div>
+    <button class="collapse-btn" id="joinPartToggle" type="button"><span id="joinPartChev">▸</span> <span id="joinPartLabel">Participants</span></button>
+    <div id="joinPartBody" style="display:none;"></div>
     <div id="joinCancelledNote" class="warn-box" style="display:none;"><b>Rando annulée</b>Les inscriptions sont fermées pour cette rando.</div>
     <div id="joinFormBody">
       <div class="grid2" style="margin-top:14px;">
@@ -300,7 +302,8 @@
     <div class="field"><label>Durée prévue</label><input id="f_duree" placeholder="ex. 4h30"></div>
     <div class="field"><label>Lieu de rendez-vous</label><input id="f_rdv" placeholder="Ex. Parking de la gare, 8h15"></div>
     <div class="field"><label>Lieu de départ</label><input id="f_adresse" placeholder="Ex. Parking du Col des Aravis, Manigod"></div>
-    <div class="field"><label>Lieu d'arrivée</label><input id="f_arrivee" placeholder="Ex. Refuge du Lac"></div>
+    <label class="checkline" style="margin:0 0 12px;"><input type="checkbox" id="f_boucle" checked> Rando en boucle (l'arrivée est le point de départ)</label>
+    <div class="field" id="f_arrivee_field" style="display:none;"><label>Lieu d'arrivée</label><input id="f_arrivee" placeholder="Ex. Refuge du Lac"></div>
     <div class="field"><label>Description (facultatif)</label><textarea id="f_desc" rows="3" placeholder="Infos utiles : équipement, pique-nique, covoiturage…"></textarea></div>
     <div class="modal-actions">
       <button class="ghost" id="btnCancel" type="button">Annuler</button>
@@ -460,13 +463,17 @@ function uid(){ return 'h_' + Date.now().toString(36) + Math.random().toString(3
 function endDateTime(h){ return new Date(h.date + 'T23:59'); }
 function isPast(h){ return endDateTime(h).getTime() < Date.now(); }
 function fmtDate(d){ const dt = new Date(d + 'T00:00:00'); return dt.toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short', year:'numeric'}); }
+function isBoucle(h){ return h.boucle !== undefined ? !!h.boucle : !h.arrivee; }
+function syncBoucleUI(){
+  document.getElementById('f_arrivee_field').style.display = document.getElementById('f_boucle').checked ? 'none' : 'block';
+}
 function hikeInfoHtml(h){
   const rows = [
     ['Date', h.date ? fmtDate(h.date) : ''],
     ['Heure de départ', h.heureDepart],
     ['Rendez-vous', h.rdv],
     ['Lieu de départ', h.departLabel],
-    ["Lieu d'arrivée", h.arrivee],
+    isBoucle(h) ? ['Parcours', 'Boucle'] : ["Lieu d'arrivée", h.arrivee],
     ['Organisateur·rice', h.orga],
     ['Distance', h.km != null ? h.km + ' km' : ''],
     ['Dénivelé', h.deniv != null ? h.deniv + ' m D+' : ''],
@@ -506,7 +513,7 @@ function renderList(){
     <div class="hike-card${h.statut==='annulee' ? ' cancelled' : ''}" data-id="${h.id}">
       <div class="titre">${escapeHtml(h.titre)}${h.statut==='annulee' ? '<span class="status-badge">Annulée</span>' : ''}</div>
       <div class="meta"><span>${fmtDate(h.date)}</span><span>${h.heureDepart||'?'}</span></div>
-      <div class="route">${escapeHtml(h.departLabel||'?')} → ${escapeHtml(h.arrivee||'?')}</div>
+      <div class="route">${escapeHtml(h.departLabel||'?')}${isBoucle(h) ? ' · boucle' : ' → ' + escapeHtml(h.arrivee||'?')}</div>
       <div class="badge">${h.km ?? '?'} km · ${h.deniv ?? '?'} m D+${h.difficulte ? ' · ' + escapeHtml(h.difficulte) : ''}</div>
     </div>`).join('');
   list.querySelectorAll('.hike-card').forEach(el=>{
@@ -663,10 +670,8 @@ function renderDetail(){
       <button class="danger" data-action="delete" type="button">Supprimer</button>
     </div>
     <div id="shareLinkPanel" style="display:none;margin-top:12px;">
-      <label class="checkline"><input type="checkbox" id="joinIncludeToken"> Inclure le jeton dans ce lien (inscription en un clic, mais donne aussi un accès en écriture complet à qui reçoit le lien)</label>
       <button class="subtle" data-action="gen-join-link" type="button">Générer et copier le lien</button>
       <input class="link-output" id="joinLinkOut" readonly onclick="this.select()">
-      <div class="hint">Sans le jeton, la personne devra déjà avoir configuré son propre accès GitHub pour que son inscription soit publiée.</div>
     </div>
   `;
 
@@ -711,8 +716,7 @@ function renderDetail(){
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
   };
   c.querySelector('[data-action="gen-join-link"]').onclick = ()=>{
-    const includeToken = document.getElementById('joinIncludeToken').checked;
-    const link = buildJoinLink(h.id, includeToken);
+    const link = buildJoinLink(h.id);
     const out = document.getElementById('joinLinkOut');
     out.value = link; out.select();
     navigator.clipboard && navigator.clipboard.writeText(link).catch(()=>{});
@@ -736,6 +740,8 @@ function openModal(hike){
   document.getElementById('f_km').value = hike && hike.km != null ? hike.km : '';
   document.getElementById('f_deniv').value = hike && hike.deniv != null ? hike.deniv : '';
   document.getElementById('f_arrivee').value = hike ? (hike.arrivee||'') : '';
+  document.getElementById('f_boucle').checked = hike ? isBoucle(hike) : true;
+  syncBoucleUI();
   document.getElementById('f_adresse').value = hike ? (hike.departLabel||'') : '';
   document.getElementById('f_desc').value = hike ? (hike.description||'') : '';
   document.getElementById('modalBackdrop').classList.add('open');
@@ -752,7 +758,8 @@ async function saveHike(){
     duree: document.getElementById('f_duree').value.trim(),
     km: parseFloat(document.getElementById('f_km').value) || null,
     deniv: parseInt(document.getElementById('f_deniv').value) || null,
-    arrivee: document.getElementById('f_arrivee').value.trim(),
+    boucle: document.getElementById('f_boucle').checked,
+    arrivee: document.getElementById('f_boucle').checked ? '' : document.getElementById('f_arrivee').value.trim(),
     departLabel: document.getElementById('f_adresse').value.trim(),
     description: document.getElementById('f_desc').value.trim()
   };
@@ -771,14 +778,14 @@ async function saveHike(){
 }
 
 // ---------- Lien d'inscription ----------
-function buildJoinLink(hikeId, includeToken){
+function buildJoinLink(hikeId){
   const cfg = getConfig();
   const params = new URLSearchParams();
   if(cfg.owner) params.set('owner', cfg.owner);
   if(cfg.repo) params.set('repo', cfg.repo);
   params.set('branch', cfg.branch); params.set('path', cfg.path);
   params.set('join', hikeId);
-  if(includeToken && cfg.token) params.set('token', cfg.token);
+  if(cfg.token) params.set('token', cfg.token);
   return location.origin + location.pathname + '?' + params.toString();
 }
 function openJoinPrompt(h){
@@ -787,6 +794,15 @@ function openJoinPrompt(h){
   document.getElementById('joinHikeTitle').textContent = h.titre;
   document.getElementById('joinHikeInfo').innerHTML = hikeInfoHtml(h);
   document.getElementById('joinHikeDesc').innerHTML = hikeDescHtml(h);
+  const jparts = (h.participants || []).map(normP);
+  document.getElementById('joinPartLabel').textContent = 'Participants (' + jparts.length + ')';
+  document.getElementById('joinPartBody').innerHTML = jparts.length === 0
+    ? '<p style="color:#8a9186;font-size:13px;">Personne inscrit pour le moment.</p>'
+    : '<table class="ptable"><thead><tr><th>Participant·e</th><th>Rencontre</th></tr></thead><tbody>'
+      + jparts.map(p => '<tr><td>' + escapeHtml(pLabel(p)) + '</td><td>' + meetLabel(p.lieu) + '</td></tr>').join('')
+      + '</tbody></table>';
+  document.getElementById('joinPartBody').style.display = 'none';
+  document.getElementById('joinPartChev').textContent = '▸';
   document.getElementById('joinName').value = '';
   document.getElementById('joinLast').value = '';
   document.getElementById('joinDirect').checked = false;
@@ -857,6 +873,7 @@ function buildShareLink(includeToken){
 document.getElementById('btnAdd').onclick = ()=> openModal();
 document.getElementById('btnCancel').onclick = closeModal;
 document.getElementById('btnSave').onclick = saveHike;
+document.getElementById('f_boucle').onchange = syncBoucleUI;
 document.getElementById('btnExport').onclick = exportData;
 document.getElementById('btnImport').onclick = ()=>document.getElementById('fileImport').click();
 document.getElementById('fileImport').onchange = (e)=>{ if(e.target.files[0]) importData(e.target.files[0]); e.target.value=''; };
@@ -877,6 +894,12 @@ document.getElementById('btnGenLink').onclick = ()=>{
   const out = document.getElementById('s_link');
   out.value = link; out.select();
   navigator.clipboard && navigator.clipboard.writeText(link).catch(()=>{});
+};
+document.getElementById('joinPartToggle').onclick = ()=>{
+  const body = document.getElementById('joinPartBody');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  document.getElementById('joinPartChev').textContent = open ? '▾' : '▸';
 };
 document.getElementById('btnJoinCancel').onclick = ()=> document.getElementById('joinModalBackdrop').classList.remove('open');
 document.getElementById('btnJoinConfirm').onclick = async ()=>{
