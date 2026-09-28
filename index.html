@@ -136,6 +136,9 @@
   .comment-form input:first-child{width:120px;height:38px;}
   .comment-form input:nth-child(2){flex:1;min-width:140px;height:38px;}
   .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .cancel-reason{color:#8f3b2a;font-size:13px;font-style:italic;margin-top:3px;}
+  .checkline.tight{margin:4px 0;}
+  .meet-title{font-size:12.5px;color:#5b6b60;font-weight:500;margin:4px 0 2px;}
   .status-badge{display:inline-block;background:#8f3b2a;color:#fff;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;padding:2px 7px;border-radius:2px;margin-left:8px;vertical-align:middle;}
   .hike-card.cancelled{opacity:.75;}
   .hike-card.cancelled .titre{text-decoration:line-through;color:#8a9186;}
@@ -202,7 +205,7 @@
   </section>
 </main>
 
-<footer>Les randos sont lues et publiées depuis un dépôt GitHub (fichier JSON) si configuré ; sinon elles restent stockées localement dans ce navigateur.</footer>
+<footer>Les randos sont lues et publiées depuis un dépôt GitHub (fichier JSON) si configuré ; sinon elles restent stockées localement dans ce navigateur. <span style="opacity:.6;">· v2026.09.28-c</span></footer>
 
 <!-- Popup détail d'une rando -->
 <div class="modal-backdrop" id="detailBackdrop">
@@ -226,7 +229,11 @@
         <div class="field"><label>Prénom</label><input id="joinName" placeholder="Prénom" autocomplete="given-name"></div>
         <div class="field"><label>NOM</label><input id="joinLast" placeholder="NOM" autocomplete="family-name" style="text-transform:uppercase;"></div>
       </div>
-      <label class="checkline" id="joinDirectRow"><input type="checkbox" id="joinDirect"> <span id="joinDirectText"></span></label>
+      <div id="joinMeetRow">
+        <div class="meet-title">Lieu de rencontre</div>
+        <label class="checkline tight"><input type="checkbox" id="joinMeetRdv" checked> <span id="joinMeetRdvText"></span></label>
+        <label class="checkline tight"><input type="checkbox" id="joinMeetDepart"> <span id="joinMeetDepartText"></span></label>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="ghost" id="btnJoinCancel" type="button">Annuler</button>
@@ -305,6 +312,7 @@
     <label class="checkline" style="margin:0 0 12px;"><input type="checkbox" id="f_boucle" checked> Rando en boucle (l'arrivée est le point de départ)</label>
     <div class="field" id="f_arrivee_field" style="display:none;"><label>Lieu d'arrivée</label><input id="f_arrivee" placeholder="Ex. Refuge du Lac"></div>
     <div class="field"><label>Description (facultatif)</label><textarea id="f_desc" rows="3" placeholder="Infos utiles : équipement, pique-nique, covoiturage…"></textarea></div>
+    <div class="field" id="f_raison_field" style="display:none;"><label>Raison de l'annulation</label><input id="f_raison" placeholder="Ex. Météo défavorable"></div>
     <div class="modal-actions">
       <button class="ghost" id="btnCancel" type="button">Annuler</button>
       <button id="btnSave" type="button">Enregistrer la rando</button>
@@ -512,6 +520,7 @@ function renderList(){
   list.innerHTML = hikes.map(h => `
     <div class="hike-card${h.statut==='annulee' ? ' cancelled' : ''}" data-id="${h.id}">
       <div class="titre">${escapeHtml(h.titre)}${h.statut==='annulee' ? '<span class="status-badge">Annulée</span>' : ''}</div>
+      ${h.statut==='annulee' && h.raisonAnnulation ? '<div class="cancel-reason">Annulée : ' + escapeHtml(h.raisonAnnulation) + '</div>' : ''}
       <div class="meta"><span>${fmtDate(h.date)}</span><span>${h.heureDepart||'?'}</span></div>
       <div class="route">${escapeHtml(h.departLabel||'?')}${isBoucle(h) ? ' · boucle' : ' → ' + escapeHtml(h.arrivee||'?')}</div>
       <div class="badge">${h.km ?? '?'} km · ${h.deniv ?? '?'} m D+${h.difficulte ? ' · ' + escapeHtml(h.difficulte) : ''}</div>
@@ -600,6 +609,12 @@ function addParticipant(s, hikeId, person){
   }
   return s;
 }
+function bindExclusive(idA, idB){
+  const a = document.getElementById(idA), b = document.getElementById(idB);
+  if(!a || !b) return;
+  a.onchange = ()=>{ if(a.checked) b.checked = false; else a.checked = true; };
+  b.onchange = ()=>{ if(b.checked) a.checked = false; else b.checked = true; };
+}
 function hikeDescHtml(h){ return h.description ? '<div class="desc">' + escapeHtml(h.description) + '</div>' : ''; }
 
 function openDetail(id, expand){
@@ -619,6 +634,9 @@ function renderDetail(){
   const cancelled = h.statut === 'annulee';
   const hasRdv = !!(h.rdv && h.rdv.trim());
   const parts = (h.participants || []).map(normP);
+  const cancelBanner = cancelled
+    ? '<div class="warn-box"><b>Rando annulée</b>' + (h.raisonAnnulation ? escapeHtml(h.raisonAnnulation) : 'Les inscriptions sont fermées.') + '</div>'
+    : '';
   const tableHtml = parts.length === 0
     ? '<p style="color:#8a9186;font-size:13px;">Personne inscrit pour le moment.</p>'
     : `<table class="ptable"><thead><tr><th>Participant·e</th><th>Rencontre</th><th></th></tr></thead><tbody>
@@ -631,14 +649,16 @@ function renderDetail(){
     : comments.map(c=>`<div class="comment"><span class="who">${escapeHtml(c.author)}</span><span class="when">${new Date(c.at).toLocaleString('fr-FR')}</span><div class="txt">${escapeHtml(c.text)}</div></div>`).join('');
 
   const signupHtml = cancelled
-    ? '<div class="warn-box"><b>Rando annulée</b>Les inscriptions sont fermées.</div>'
+    ? '<p class="hint" style="margin:14px 0 0;">Les inscriptions sont fermées pour cette rando.</p>'
     : `<div class="section-title">S'inscrire</div>
       <div class="grid2">
         <div class="field"><label>Prénom</label><input id="signupFirst" placeholder="Prénom" autocomplete="given-name"></div>
         <div class="field"><label>NOM</label><input id="signupLast" placeholder="NOM" autocomplete="family-name" style="text-transform:uppercase;"></div>
       </div>
       ${hasRdv
-        ? `<label class="checkline"><input type="checkbox" id="signupDirect"> Je rejoins directement le lieu de départ${h.departLabel ? ' (' + escapeHtml(h.departLabel) + ')' : ''} plutôt que le point de RdV (${escapeHtml(h.rdv)})</label>`
+        ? `<div class="meet-title">Lieu de rencontre</div>
+           <label class="checkline tight"><input type="checkbox" id="signupMeetRdv" checked> Point de RdV (${escapeHtml(h.rdv)})</label>
+           <label class="checkline tight"><input type="checkbox" id="signupMeetDepart"> Lieu de départ${h.departLabel ? ' (' + escapeHtml(h.departLabel) + ')' : ''}</label>`
         : `<p class="hint" style="margin:0 0 10px;">Rencontre au lieu de départ${h.departLabel ? ' : ' + escapeHtml(h.departLabel) : ''}.</p>`}
       <button class="subtle" data-action="signup" type="button">S'inscrire</button>`;
 
@@ -649,6 +669,7 @@ function renderDetail(){
       </div>
       <button data-action="close" title="Fermer">✕</button>
     </div>
+    ${cancelBanner}
     ${hikeInfoHtml(h)}
     ${hikeDescHtml(h)}
     <button class="collapse-btn" data-action="toggle-participants" type="button"><span id="pChev">${participantsOpen ? '▾' : '▸'}</span> Participants (${parts.length})</button>
@@ -669,6 +690,13 @@ function renderDetail(){
       <button class="subtle" data-action="toggle-cancel" type="button">${cancelled ? '↩ Rétablir la rando' : '🚫 Annuler la rando'}</button>
       <button class="danger" data-action="delete" type="button">Supprimer</button>
     </div>
+    ${cancelled ? '' : `<div id="cancelPanel" style="display:none;margin-top:12px;">
+      <div class="field"><label>Raison de l'annulation (affichée sur la page principale)</label><input id="cancelReason" placeholder="Ex. Météo défavorable"></div>
+      <div class="action-row" style="margin-top:0;">
+        <button class="danger" data-action="confirm-cancel" type="button">Confirmer l'annulation</button>
+        <button class="subtle" data-action="abort-cancel" type="button">Retour</button>
+      </div>
+    </div>`}
     <div id="shareLinkPanel" style="display:none;margin-top:12px;">
       <button class="subtle" data-action="gen-join-link" type="button">Générer et copier le lien</button>
       <input class="link-output" id="joinLinkOut" readonly onclick="this.select()">
@@ -682,12 +710,13 @@ function renderDetail(){
     document.getElementById('participantsBody').style.display = participantsOpen ? 'block' : 'none';
     document.getElementById('pChev').textContent = participantsOpen ? '▾' : '▸';
   };
+  bindExclusive('signupMeetRdv', 'signupMeetDepart');
   const sb = c.querySelector('[data-action="signup"]');
   if(sb) sb.onclick = ()=>{
     const prenom = document.getElementById('signupFirst').value.trim();
     const nom = document.getElementById('signupLast').value.trim().toUpperCase();
     if(!prenom || !nom){ alert('Merci de renseigner votre prénom et votre NOM.'); return; }
-    const direct = !hasRdv || document.getElementById('signupDirect').checked;
+    const direct = !hasRdv || document.getElementById('signupMeetDepart').checked;
     const person = {prenom, nom, lieu: direct ? 'depart' : 'rdv'};
     participantsOpen = true;
     syncMutate(s=>addParticipant(s, h.id, person), `Inscription de ${prenom} ${nom} — ${h.titre}`);
@@ -702,9 +731,21 @@ function renderDetail(){
     syncMutate(s=>{ const hh=s.hikes.find(x=>x.id===h.id); if(hh){ hh.comments=hh.comments||[]; hh.comments.push({author, text, at: new Date().toISOString()}); } return s; }, `Commentaire de ${author} — ${h.titre}`);
   };
   c.querySelector('[data-action="toggle-cancel"]').onclick = ()=>{
-    if(!cancelled && !confirm("Annuler cette rando ? Elle restera visible, marquée comme annulée, et les inscriptions seront fermées.")) return;
-    syncMutate(s=>{ const hh=(s.hikes||[]).find(x=>x.id===h.id); if(hh) hh.statut = cancelled ? 'active' : 'annulee'; return s; }, `${cancelled ? 'Rétablissement' : 'Annulation'} — ${h.titre}`);
+    if(cancelled){
+      syncMutate(s=>{ const hh=(s.hikes||[]).find(x=>x.id===h.id); if(hh){ hh.statut = 'active'; hh.raisonAnnulation = ''; } return s; }, `Rétablissement — ${h.titre}`);
+    } else {
+      const panel = document.getElementById('cancelPanel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+      if(panel.style.display === 'block') document.getElementById('cancelReason').focus();
+    }
   };
+  const cp = c.querySelector('[data-action="confirm-cancel"]');
+  if(cp) cp.onclick = ()=>{
+    const reason = document.getElementById('cancelReason').value.trim();
+    syncMutate(s=>{ const hh=(s.hikes||[]).find(x=>x.id===h.id); if(hh){ hh.statut = 'annulee'; hh.raisonAnnulation = reason; } return s; }, `Annulation — ${h.titre}`);
+  };
+  const ab = c.querySelector('[data-action="abort-cancel"]');
+  if(ab) ab.onclick = ()=>{ document.getElementById('cancelPanel').style.display = 'none'; };
   c.querySelector('[data-action="delete"]').onclick = ()=>{
     if(!confirm('Supprimer définitivement cette rando ?')) return;
     syncMutate(s=>{ s.hikes = s.hikes.filter(x=>x.id!==h.id); return s; }, `Suppression — ${h.titre}`);
@@ -744,6 +785,8 @@ function openModal(hike){
   syncBoucleUI();
   document.getElementById('f_adresse').value = hike ? (hike.departLabel||'') : '';
   document.getElementById('f_desc').value = hike ? (hike.description||'') : '';
+  document.getElementById('f_raison').value = hike ? (hike.raisonAnnulation||'') : '';
+  document.getElementById('f_raison_field').style.display = (hike && hike.statut === 'annulee') ? 'block' : 'none';
   document.getElementById('modalBackdrop').classList.add('open');
 }
 function closeModal(){ document.getElementById('modalBackdrop').classList.remove('open'); }
@@ -763,6 +806,7 @@ async function saveHike(){
     departLabel: document.getElementById('f_adresse').value.trim(),
     description: document.getElementById('f_desc').value.trim()
   };
+  if(document.getElementById('f_raison_field').style.display !== 'none') fields.raisonAnnulation = document.getElementById('f_raison').value.trim();
   if(editingId){
     const id = editingId;
     await syncMutate(s=>{ const idx=(s.hikes||[]).findIndex(x=>x.id===id); if(idx>-1) s.hikes[idx] = Object.assign({}, s.hikes[idx], fields); return s; }, `Modification — ${titre}`);
@@ -805,9 +849,12 @@ function openJoinPrompt(h){
   document.getElementById('joinPartChev').textContent = '▸';
   document.getElementById('joinName').value = '';
   document.getElementById('joinLast').value = '';
-  document.getElementById('joinDirect').checked = false;
-  document.getElementById('joinDirectRow').style.display = hasRdv ? 'flex' : 'none';
-  document.getElementById('joinDirectText').textContent = 'Je rejoins directement le lieu de départ' + (h.departLabel ? ' (' + h.departLabel + ')' : '') + ' plutôt que le point de RdV (' + (h.rdv || '') + ')';
+  document.getElementById('joinMeetRdv').checked = true;
+  document.getElementById('joinMeetDepart').checked = false;
+  document.getElementById('joinMeetRow').style.display = hasRdv ? 'block' : 'none';
+  document.getElementById('joinMeetRdvText').textContent = 'Point de RdV (' + (h.rdv || '') + ')';
+  document.getElementById('joinMeetDepartText').textContent = 'Lieu de départ' + (h.departLabel ? ' (' + h.departLabel + ')' : '');
+  document.getElementById('joinCancelledNote').innerHTML = '<b>Rando annulée</b>' + (h.raisonAnnulation ? escapeHtml(h.raisonAnnulation) + ' — ' : '') + 'Les inscriptions sont fermées.';
   document.getElementById('joinCancelledNote').style.display = cancelled ? 'block' : 'none';
   document.getElementById('joinFormBody').style.display = cancelled ? 'none' : 'block';
   document.getElementById('btnJoinConfirm').disabled = cancelled;
@@ -895,6 +942,7 @@ document.getElementById('btnGenLink').onclick = ()=>{
   out.value = link; out.select();
   navigator.clipboard && navigator.clipboard.writeText(link).catch(()=>{});
 };
+bindExclusive('joinMeetRdv', 'joinMeetDepart');
 document.getElementById('joinPartToggle').onclick = ()=>{
   const body = document.getElementById('joinPartBody');
   const open = body.style.display === 'none';
@@ -909,7 +957,7 @@ document.getElementById('btnJoinConfirm').onclick = async ()=>{
   const hikeId = document.getElementById('joinModalBackdrop').dataset.hikeId;
   const hk = (state.hikes||[]).find(x=>x.id===hikeId);
   const hasRdv = !!(hk && hk.rdv && hk.rdv.trim());
-  const direct = !hasRdv || document.getElementById('joinDirect').checked;
+  const direct = !hasRdv || document.getElementById('joinMeetDepart').checked;
   const person = {prenom, nom, lieu: direct ? 'depart' : 'rdv'};
   await syncMutate(s=>addParticipant(s, hikeId, person), `Inscription (lien) de ${prenom} ${nom}`);
   document.getElementById('joinModalBackdrop').classList.remove('open');
@@ -935,7 +983,7 @@ async function boot(){
     pendingJoin = null;
   } else {
     const key = x => x.date + 'T' + (x.heureDepart || '00:00');
-    const next = (state.hikes || []).filter(x => !isPast(x)).sort((a, b) => key(a).localeCompare(key(b)))[0];
+    const next = (state.hikes || []).filter(x => !isPast(x) && x.statut !== 'annulee').sort((a, b) => key(a).localeCompare(key(b)))[0];
     if(next) openDetail(next.id);
   }
 }
