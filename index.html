@@ -136,6 +136,14 @@
   .comment-form input:first-child{width:120px;height:38px;}
   .comment-form input:nth-child(2){flex:1;min-width:140px;height:38px;}
   .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .status-badge{display:inline-block;background:#8f3b2a;color:#fff;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;padding:2px 7px;border-radius:2px;margin-left:8px;vertical-align:middle;}
+  .hike-card.cancelled{opacity:.75;}
+  .hike-card.cancelled .titre{text-decoration:line-through;color:#8a9186;}
+  .cal-chip.cancelled{background:#9aa39a;text-decoration:line-through;}
+  .desc{white-space:pre-wrap;margin:12px 0 0;font-size:14px;color:var(--ink);background:var(--card-bg);border-left:3px solid var(--contour);padding:10px 12px;overflow-wrap:anywhere;}
+  .field textarea{resize:vertical;}
+  button.collapse-btn{border:none;background:none;color:var(--pine-dark);font-weight:650;font-size:14px;padding:0;margin:18px 0 8px;display:flex;gap:6px;align-items:center;}
+  button.collapse-btn:hover{background:none;color:var(--clay);}
   .info-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;margin:10px 0 0;}
   .info-grid dt{color:#5b6b60;font-size:12.5px;}
   .info-grid dd{margin:0;color:var(--ink);font-weight:500;overflow-wrap:anywhere;}
@@ -209,7 +217,15 @@
     <div class="hint" style="margin:0 0 4px;">Inscription à la randonnée</div>
     <h2 id="joinHikeTitle" style="margin:0 0 4px;font-size:26px;line-height:1.2;color:var(--pine-dark);"></h2>
     <div id="joinHikeInfo"></div>
-    <div class="field" style="margin-top:14px;"><label>Votre prénom</label><input id="joinName" placeholder="Prénom"></div>
+    <div id="joinHikeDesc"></div>
+    <div id="joinCancelledNote" class="warn-box" style="display:none;"><b>Rando annulée</b>Les inscriptions sont fermées pour cette rando.</div>
+    <div id="joinFormBody">
+      <div class="grid2" style="margin-top:14px;">
+        <div class="field"><label>Prénom</label><input id="joinName" placeholder="Prénom" autocomplete="given-name"></div>
+        <div class="field"><label>NOM</label><input id="joinLast" placeholder="NOM" autocomplete="family-name" style="text-transform:uppercase;"></div>
+      </div>
+      <label class="checkline" id="joinDirectRow"><input type="checkbox" id="joinDirect"> <span id="joinDirectText"></span></label>
+    </div>
     <div class="modal-actions">
       <button class="ghost" id="btnJoinCancel" type="button">Annuler</button>
       <button id="btnJoinConfirm" type="button">Confirmer mon inscription</button>
@@ -285,6 +301,7 @@
     <div class="field"><label>Lieu de rendez-vous</label><input id="f_rdv" placeholder="Ex. Parking de la gare, 8h15"></div>
     <div class="field"><label>Lieu de départ</label><input id="f_adresse" placeholder="Ex. Parking du Col des Aravis, Manigod"></div>
     <div class="field"><label>Lieu d'arrivée</label><input id="f_arrivee" placeholder="Ex. Refuge du Lac"></div>
+    <div class="field"><label>Description (facultatif)</label><textarea id="f_desc" rows="3" placeholder="Infos utiles : équipement, pique-nique, covoiturage…"></textarea></div>
     <div class="modal-actions">
       <button class="ghost" id="btnCancel" type="button">Annuler</button>
       <button id="btnSave" type="button">Enregistrer la rando</button>
@@ -486,8 +503,8 @@ function renderList(){
     return;
   }
   list.innerHTML = hikes.map(h => `
-    <div class="hike-card" data-id="${h.id}">
-      <div class="titre">${escapeHtml(h.titre)}</div>
+    <div class="hike-card${h.statut==='annulee' ? ' cancelled' : ''}" data-id="${h.id}">
+      <div class="titre">${escapeHtml(h.titre)}${h.statut==='annulee' ? '<span class="status-badge">Annulée</span>' : ''}</div>
       <div class="meta"><span>${fmtDate(h.date)}</span><span>${h.heureDepart||'?'}</span></div>
       <div class="route">${escapeHtml(h.departLabel||'?')} → ${escapeHtml(h.arrivee||'?')}</div>
       <div class="badge">${h.km ?? '?'} km · ${h.deniv ?? '?'} m D+${h.difficulte ? ' · ' + escapeHtml(h.difficulte) : ''}</div>
@@ -511,7 +528,7 @@ function renderCalendar(){
     const dayHikes = (state.hikes||[]).filter(h=>h.date===dateStr);
     html += `<div class="cal-cell ${dateStr===todayStr?'today':''}">
       <div class="cal-daynum">${day}</div>
-      ${dayHikes.map(h=>`<div class="cal-chip" data-id="${h.id}" title="${escapeHtml(h.titre)}">${escapeHtml(h.titre)}</div>`).join('')}
+      ${dayHikes.map(h=>`<div class="cal-chip${h.statut==='annulee' ? ' cancelled' : ''}" data-id="${h.id}" title="${escapeHtml(h.titre)}">${escapeHtml(h.titre)}</div>`).join('')}
     </div>`;
   }
   grid.innerHTML = html;
@@ -527,7 +544,9 @@ function renderRankTable(counts, emptyMsg){
   return `<table class="ptable"><tbody>${entries.map(([name,count])=>`<tr><td>${escapeHtml(name)}</td><td class="actions">${count}</td></tr>`).join('')}</tbody></table>`;
 }
 function renderStats(){
-  const hikes = state.hikes || [];
+  const allHikes = state.hikes || [];
+  const hikes = allHikes.filter(h => h.statut !== 'annulee');
+  const cancelledCount = allHikes.length - hikes.length;
   const totalKm = hikes.reduce((sum,h)=> sum + (h.km||0), 0);
   const totalDeniv = hikes.reduce((sum,h)=> sum + (h.deniv||0), 0);
   const upcoming = hikes.filter(h=>!isPast(h)).length;
@@ -536,6 +555,7 @@ function renderStats(){
     <div class="stat"><b>${hikes.length}</b>randos au total</div>
     <div class="stat"><b>${upcoming}</b>à venir</div>
     <div class="stat"><b>${past}</b>passées</div>
+    ${cancelledCount ? '<div class="stat"><b>' + cancelledCount + '</b>annulées</div>' : ''}
     <div class="stat"><b>${totalKm.toFixed(0)} km</b>distance cumulée</div>
     <div class="stat"><b>${totalDeniv} m</b>dénivelé cumulé</div>
   `;
@@ -555,12 +575,32 @@ function renderStats(){
   hikes.forEach(h=>{ if(h.orga) orgaCounts[h.orga] = (orgaCounts[h.orga]||0)+1; });
   document.getElementById('statsOrga').innerHTML = renderRankTable(orgaCounts, 'Aucune donnée.');
   const partCounts = {};
-  hikes.forEach(h=> (h.participants||[]).forEach(p=> partCounts[p] = (partCounts[p]||0)+1));
+  hikes.forEach(h=> (h.participants||[]).forEach(p=>{ const l = pLabel(p); partCounts[l] = (partCounts[l]||0)+1; }));
   document.getElementById('statsPart').innerHTML = renderRankTable(partCounts, 'Aucune inscription pour le moment.');
 }
 
 // ---------- Détail (popup) ----------
-function openDetail(id){ selectedId = id; renderDetail(); }
+let participantsOpen = false;
+function normP(p){ return typeof p === 'string' ? {prenom: p, nom: '', lieu: ''} : p; }
+function pLabel(p){ p = normP(p); return p.prenom + (p.nom ? ' ' + p.nom : ''); }
+function pKey(p){ p = normP(p); return (p.prenom + '|' + (p.nom || '')).toLowerCase(); }
+function meetLabel(l){ return l === 'depart' ? 'Départ' : (l === 'rdv' ? 'RdV' : '—'); }
+function addParticipant(s, hikeId, person){
+  const hh = (s.hikes || []).find(x => x.id === hikeId);
+  if(hh){
+    hh.participants = (hh.participants || []).filter(x => pKey(x) !== pKey(person));
+    hh.participants.push(person);
+  }
+  return s;
+}
+function hikeDescHtml(h){ return h.description ? '<div class="desc">' + escapeHtml(h.description) + '</div>' : ''; }
+
+function openDetail(id, expand){
+  if(selectedId !== id) participantsOpen = false;
+  if(expand) participantsOpen = true;
+  selectedId = id;
+  renderDetail();
+}
 function closeDetail(){ selectedId = null; document.getElementById('detailBackdrop').classList.remove('open'); }
 
 function renderDetail(){
@@ -569,11 +609,13 @@ function renderDetail(){
   const h = (state.hikes||[]).find(x=>x.id===selectedId);
   if(!h){ selectedId = null; bd.classList.remove('open'); return; }
 
-  const parts = h.participants || [];
-  const participantsHtml = parts.length === 0
-    ? '<p style="color:#8a9186;font-size:13px;">Personne inscrit pour l\'instant.</p>'
-    : `<table class="ptable"><thead><tr><th>Prénom</th><th></th></tr></thead><tbody>
-        ${parts.map(p=>`<tr><td>${escapeHtml(p)}</td><td class="actions"><button data-name="${escapeHtml(p)}" data-action="unsignup">Se désinscrire</button></td></tr>`).join('')}
+  const cancelled = h.statut === 'annulee';
+  const hasRdv = !!(h.rdv && h.rdv.trim());
+  const parts = (h.participants || []).map(normP);
+  const tableHtml = parts.length === 0
+    ? '<p style="color:#8a9186;font-size:13px;">Personne inscrit pour le moment.</p>'
+    : `<table class="ptable"><thead><tr><th>Participant·e</th><th>Rencontre</th><th></th></tr></thead><tbody>
+        ${parts.map(p=>`<tr><td>${escapeHtml(pLabel(p))}</td><td>${meetLabel(p.lieu)}</td><td class="actions"><button data-key="${escapeHtml(pKey(p))}" data-action="unsignup">Désinscrire</button></td></tr>`).join('')}
        </tbody></table>`;
 
   const comments = h.comments || [];
@@ -581,20 +623,30 @@ function renderDetail(){
     ? '<div style="color:#8a9186;font-size:13px;padding:8px 0;">Aucun message pour le moment.</div>'
     : comments.map(c=>`<div class="comment"><span class="who">${escapeHtml(c.author)}</span><span class="when">${new Date(c.at).toLocaleString('fr-FR')}</span><div class="txt">${escapeHtml(c.text)}</div></div>`).join('');
 
+  const signupHtml = cancelled
+    ? '<div class="warn-box"><b>Rando annulée</b>Les inscriptions sont fermées.</div>'
+    : `<div class="section-title">S'inscrire</div>
+      <div class="grid2">
+        <div class="field"><label>Prénom</label><input id="signupFirst" placeholder="Prénom" autocomplete="given-name"></div>
+        <div class="field"><label>NOM</label><input id="signupLast" placeholder="NOM" autocomplete="family-name" style="text-transform:uppercase;"></div>
+      </div>
+      ${hasRdv
+        ? `<label class="checkline"><input type="checkbox" id="signupDirect"> Je rejoins directement le lieu de départ${h.departLabel ? ' (' + escapeHtml(h.departLabel) + ')' : ''} plutôt que le point de RdV (${escapeHtml(h.rdv)})</label>`
+        : `<p class="hint" style="margin:0 0 10px;">Rencontre au lieu de départ${h.departLabel ? ' : ' + escapeHtml(h.departLabel) : ''}.</p>`}
+      <button class="subtle" data-action="signup" type="button">S'inscrire</button>`;
+
   document.getElementById('detailContent').innerHTML = `
     <div class="modal-close-row">
       <div class="detail-head">
-        <h2>${escapeHtml(h.titre)}</h2>
+        <h2>${escapeHtml(h.titre)}${cancelled ? '<span class="status-badge">Annulée</span>' : ''}</h2>
       </div>
       <button data-action="close" title="Fermer">✕</button>
     </div>
     ${hikeInfoHtml(h)}
-    <div class="section-title">Participants (${parts.length})</div>
-    ${participantsHtml}
-    <div class="signup-row">
-      <input id="signupName" placeholder="Votre prénom">
-      <button class="subtle" data-action="signup" type="button">S'inscrire</button>
-    </div>
+    ${hikeDescHtml(h)}
+    <button class="collapse-btn" data-action="toggle-participants" type="button"><span id="pChev">${participantsOpen ? '▾' : '▸'}</span> Participants (${parts.length})</button>
+    <div id="participantsBody" style="display:${participantsOpen ? 'block' : 'none'};">${tableHtml}</div>
+    ${signupHtml}
     <div class="section-title">Discussion</div>
     <div>${commentsHtml}</div>
     <div class="comment-form">
@@ -607,6 +659,7 @@ function renderDetail(){
     <div class="action-row">
       <button class="subtle" data-action="toggle-share" type="button">🔗 Lien d'inscription</button>
       <button class="subtle" data-action="edit" type="button">✏️ Modifier</button>
+      <button class="subtle" data-action="toggle-cancel" type="button">${cancelled ? '↩ Rétablir la rando' : '🚫 Annuler la rando'}</button>
       <button class="danger" data-action="delete" type="button">Supprimer</button>
     </div>
     <div id="shareLinkPanel" style="display:none;margin-top:12px;">
@@ -619,19 +672,33 @@ function renderDetail(){
 
   const c = document.getElementById('detailContent');
   c.querySelector('[data-action="close"]').onclick = closeDetail;
-  c.querySelector('[data-action="signup"]').onclick = ()=>{
-    const name = document.getElementById('signupName').value.trim();
-    if(!name) return;
-    syncMutate(s=>{ const hh=s.hikes.find(x=>x.id===h.id); if(hh){ hh.participants=hh.participants||[]; if(!hh.participants.includes(name)) hh.participants.push(name);} return s; }, `Inscription de ${name} — ${h.titre}`);
+  c.querySelector('[data-action="toggle-participants"]').onclick = ()=>{
+    participantsOpen = !participantsOpen;
+    document.getElementById('participantsBody').style.display = participantsOpen ? 'block' : 'none';
+    document.getElementById('pChev').textContent = participantsOpen ? '▾' : '▸';
+  };
+  const sb = c.querySelector('[data-action="signup"]');
+  if(sb) sb.onclick = ()=>{
+    const prenom = document.getElementById('signupFirst').value.trim();
+    const nom = document.getElementById('signupLast').value.trim().toUpperCase();
+    if(!prenom || !nom){ alert('Merci de renseigner votre prénom et votre NOM.'); return; }
+    const direct = !hasRdv || document.getElementById('signupDirect').checked;
+    const person = {prenom, nom, lieu: direct ? 'depart' : 'rdv'};
+    participantsOpen = true;
+    syncMutate(s=>addParticipant(s, h.id, person), `Inscription de ${prenom} ${nom} — ${h.titre}`);
   };
   c.querySelectorAll('[data-action="unsignup"]').forEach(btn=>{
-    btn.onclick = ()=> syncMutate(s=>{ const hh=s.hikes.find(x=>x.id===h.id); if(hh) hh.participants = (hh.participants||[]).filter(x=>x!==btn.dataset.name); return s; }, `Désinscription — ${h.titre}`);
+    btn.onclick = ()=> syncMutate(s=>{ const hh=(s.hikes||[]).find(x=>x.id===h.id); if(hh) hh.participants = (hh.participants||[]).filter(x=>pKey(x)!==btn.dataset.key); return s; }, `Désinscription — ${h.titre}`);
   });
   c.querySelector('[data-action="comment"]').onclick = ()=>{
     const author = document.getElementById('commentAuthor').value.trim();
     const text = document.getElementById('commentText').value.trim();
     if(!author || !text) return;
     syncMutate(s=>{ const hh=s.hikes.find(x=>x.id===h.id); if(hh){ hh.comments=hh.comments||[]; hh.comments.push({author, text, at: new Date().toISOString()}); } return s; }, `Commentaire de ${author} — ${h.titre}`);
+  };
+  c.querySelector('[data-action="toggle-cancel"]').onclick = ()=>{
+    if(!cancelled && !confirm("Annuler cette rando ? Elle restera visible, marquée comme annulée, et les inscriptions seront fermées.")) return;
+    syncMutate(s=>{ const hh=(s.hikes||[]).find(x=>x.id===h.id); if(hh) hh.statut = cancelled ? 'active' : 'annulee'; return s; }, `${cancelled ? 'Rétablissement' : 'Annulation'} — ${h.titre}`);
   };
   c.querySelector('[data-action="delete"]').onclick = ()=>{
     if(!confirm('Supprimer définitivement cette rando ?')) return;
@@ -670,6 +737,7 @@ function openModal(hike){
   document.getElementById('f_deniv').value = hike && hike.deniv != null ? hike.deniv : '';
   document.getElementById('f_arrivee').value = hike ? (hike.arrivee||'') : '';
   document.getElementById('f_adresse').value = hike ? (hike.departLabel||'') : '';
+  document.getElementById('f_desc').value = hike ? (hike.description||'') : '';
   document.getElementById('modalBackdrop').classList.add('open');
 }
 function closeModal(){ document.getElementById('modalBackdrop').classList.remove('open'); }
@@ -685,7 +753,8 @@ async function saveHike(){
     km: parseFloat(document.getElementById('f_km').value) || null,
     deniv: parseInt(document.getElementById('f_deniv').value) || null,
     arrivee: document.getElementById('f_arrivee').value.trim(),
-    departLabel: document.getElementById('f_adresse').value.trim()
+    departLabel: document.getElementById('f_adresse').value.trim(),
+    description: document.getElementById('f_desc').value.trim()
   };
   if(editingId){
     const id = editingId;
@@ -693,7 +762,7 @@ async function saveHike(){
     closeModal();
     openDetail(id);
   } else {
-    const h = Object.assign({id: uid(), participants: [], comments: []}, fields);
+    const h = Object.assign({id: uid(), statut: 'active', participants: [], comments: []}, fields);
     await syncMutate(s=>{ s.hikes = s.hikes || []; s.hikes.push(h); return s; }, `Nouvelle rando — ${titre}`);
     closeModal();
     showPast = false; document.getElementById('chkPast').checked = false;
@@ -713,9 +782,19 @@ function buildJoinLink(hikeId, includeToken){
   return location.origin + location.pathname + '?' + params.toString();
 }
 function openJoinPrompt(h){
+  const cancelled = h.statut === 'annulee';
+  const hasRdv = !!(h.rdv && h.rdv.trim());
   document.getElementById('joinHikeTitle').textContent = h.titre;
   document.getElementById('joinHikeInfo').innerHTML = hikeInfoHtml(h);
+  document.getElementById('joinHikeDesc').innerHTML = hikeDescHtml(h);
   document.getElementById('joinName').value = '';
+  document.getElementById('joinLast').value = '';
+  document.getElementById('joinDirect').checked = false;
+  document.getElementById('joinDirectRow').style.display = hasRdv ? 'flex' : 'none';
+  document.getElementById('joinDirectText').textContent = 'Je rejoins directement le lieu de départ' + (h.departLabel ? ' (' + h.departLabel + ')' : '') + ' plutôt que le point de RdV (' + (h.rdv || '') + ')';
+  document.getElementById('joinCancelledNote').style.display = cancelled ? 'block' : 'none';
+  document.getElementById('joinFormBody').style.display = cancelled ? 'none' : 'block';
+  document.getElementById('btnJoinConfirm').disabled = cancelled;
   document.getElementById('joinModalBackdrop').dataset.hikeId = h.id;
   document.getElementById('joinModalBackdrop').classList.add('open');
 }
@@ -801,12 +880,17 @@ document.getElementById('btnGenLink').onclick = ()=>{
 };
 document.getElementById('btnJoinCancel').onclick = ()=> document.getElementById('joinModalBackdrop').classList.remove('open');
 document.getElementById('btnJoinConfirm').onclick = async ()=>{
-  const name = document.getElementById('joinName').value.trim();
-  if(!name) return;
+  const prenom = document.getElementById('joinName').value.trim();
+  const nom = document.getElementById('joinLast').value.trim().toUpperCase();
+  if(!prenom || !nom){ alert('Merci de renseigner votre prénom et votre NOM.'); return; }
   const hikeId = document.getElementById('joinModalBackdrop').dataset.hikeId;
-  await syncMutate(s=>{ const hh=s.hikes.find(x=>x.id===hikeId); if(hh){ hh.participants=hh.participants||[]; if(!hh.participants.includes(name)) hh.participants.push(name);} return s; }, `Inscription (lien) de ${name}`);
+  const hk = (state.hikes||[]).find(x=>x.id===hikeId);
+  const hasRdv = !!(hk && hk.rdv && hk.rdv.trim());
+  const direct = !hasRdv || document.getElementById('joinDirect').checked;
+  const person = {prenom, nom, lieu: direct ? 'depart' : 'rdv'};
+  await syncMutate(s=>addParticipant(s, hikeId, person), `Inscription (lien) de ${prenom} ${nom}`);
   document.getElementById('joinModalBackdrop').classList.remove('open');
-  openDetail(hikeId);
+  openDetail(hikeId, true);
 };
 document.querySelectorAll('.modal-backdrop').forEach(bd=>{
   bd.addEventListener('click', e=>{
